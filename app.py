@@ -132,5 +132,5 @@ def update_graph(assay_type, library_source, platform, continent, country):
 
     return fig, get_stats(ddf)
 
-# Run app and display result inline in the notebook
-app.run_server(port=8082)
+if __name__ == '__main__':
+    app.run_server()
