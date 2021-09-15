@@ -63,7 +63,9 @@ def dropdown_div(dimensions_dict):
     
     return input_list
 
-app = dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+########### Initiate the app
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+server = app.server
 
 input_list = dropdown_div(dimensions_dict)
 fig = fig_parallel_categories(df, dimensions_display)
