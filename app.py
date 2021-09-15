@@ -70,6 +70,11 @@ server = app.server
 input_list = dropdown_div(dimensions_dict)
 fig = fig_parallel_categories(df, dimensions_display)
 
+# the style arguments for the main content page.
+CONTENT_STYLE = {
+    'margin': '20px 20px'
+}
+
 app.layout = html.Div([
     html.H2(
         children='Wastewater metagenome',
@@ -94,7 +99,7 @@ app.layout = html.Div([
             figure=fig
         )
     ], style={'width': '90%', 'display': 'inline-block', 'padding': '10 20'}),
-], style={'margin': '10 20'})
+], style=CONTENT_STYLE)
 
 
 # dimensions_dict = {
@@ -128,4 +133,4 @@ def update_graph(assay_type, library_source, platform, continent, country):
     return fig, get_stats(ddf)
 
 # Run app and display result inline in the notebook
-app.run_server()
+app.run_server(port=8082)
