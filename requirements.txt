@@ -1,8 +1,6 @@
-dash
-dash-core-components
-dash-html-components
-dash-renderer
-dash-table
-dash_bootstrap_components
-pandas
 plotly
+dash
+dash_core_components
+dash_bootstrap_components
+dash_html_components
+pandas
