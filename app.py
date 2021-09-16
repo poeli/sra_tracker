@@ -138,6 +138,7 @@ app.layout = html.Div([
     Input('country', 'value'),
     Input('colored_column', 'value'))
 def update_graph(assay_type, library_source, platform, continent, country, colored_column):
+    global ddf
     ddf = df
     if assay_type:
         ddf = ddf[ddf[dimensions_dict['assay_type']]==assay_type]
@@ -162,7 +163,11 @@ def update_graph(assay_type, library_source, platform, continent, country, color
     prevent_initial_call=True,
 )
 def func(n_clicks):
-    return dcc.send_data_frame(df_sra[df_sra.Run.isin(ddf.Run)].to_csv, "sra_wastewater.csv")
+    global ddf
+    return dcc.send_data_frame(
+        df_sra[df_sra.Run.isin(ddf.Run)].to_csv,
+        "sra_wastewater.csv"
+    )
 
 if __name__ == '__main__':
     app.run_server()
