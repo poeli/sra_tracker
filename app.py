@@ -23,8 +23,12 @@ dimensions_display = ['Assay Type', 'LibrarySource', 'Platform', 'geo_loc_name_c
 
 df = df_sra[['Run', 'BioSample', 'BioProject', 'geo_loc_name_country']+dimensions_display]
 df = df.fillna('N/A')
+ddf = df
 
 def fig_parallel_categories(df, dimensions, color_col):
+    """
+    Generate parallel_categories plot
+    """
     ddf = df.copy()
     
     # set colors
@@ -41,6 +45,9 @@ def fig_parallel_categories(df, dimensions, color_col):
     return fig
 
 def get_stats(df):
+    """
+    Get stats of Runs, BioSamples and BioProjects
+    """
     sra_num = len(df)
     biosample_num = len(df.BioSample.unique())
     bioproj_num = len(df.BioProject.unique())
@@ -49,7 +56,7 @@ def get_stats(df):
 
 def dropdown_div(dimensions_dict):
     """
-    This function is used to generate selection options
+    Generate selection options based on the argument dict
     """
     input_list = []
 
@@ -114,6 +121,10 @@ app.layout = html.Div([
             figure=fig
         )
     ], style={'width': '90%', 'display': 'inline-block', 'padding': '10px 20px'}),
+    html.Div([
+        dbc.Button("Export SRA", color="primary", id="btn_csv", className="mr-1"),
+        dcc.Download(id="download-dataframe-csv")
+    ]),
 ], style={'margin': '10px 20px'})
 
 
@@ -144,6 +155,14 @@ def update_graph(assay_type, library_source, platform, continent, country, color
     fig = fig_parallel_categories(ddf, dimensions_display, colored_column)
 
     return fig, get_stats(ddf)
+
+@app.callback(
+    Output("download-dataframe-csv", "data"),
+    Input("btn_csv", "n_clicks"),
+    prevent_initial_call=True,
+)
+def func(n_clicks):
+    return dcc.send_data_frame(df_sra[df_sra.Run.isin(ddf.Run)].to_csv, "sra_wastewater.csv")
 
 if __name__ == '__main__':
     app.run_server()
