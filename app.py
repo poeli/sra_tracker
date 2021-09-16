@@ -113,8 +113,8 @@ app.layout = html.Div([
             id='sra_sankey',
             figure=fig
         )
-    ], style={'width': '90%', 'display': 'inline-block', 'padding': '10 20'}),
-], style={'margin': '10 20'})
+    ], style={'width': '90%', 'display': 'inline-block', 'padding': '10px 20px'}),
+], style={'margin': '10px 20px'})
 
 
 @app.callback(
