@@ -24,13 +24,16 @@ dimensions_display = ['Assay Type', 'LibrarySource', 'Platform', 'geo_loc_name_c
 df = df_sra[['Run', 'BioSample', 'BioProject', 'geo_loc_name_country']+dimensions_display]
 df = df.fillna('N/A')
 
-c = list(df['Assay Type'].unique())
-colors = px.colors.qualitative.Dark24
-c_dict = dict(zip(c, colors[:len(c)]))
-df['COLORS'] = df['Assay Type'].map(c_dict)
-
-def fig_parallel_categories(df, dimensions):
-    fig = px.parallel_categories(df, dimensions=dimensions, color='COLORS')
+def fig_parallel_categories(df, dimensions, color_col):
+    ddf = df.copy()
+    
+    # set colors
+    c = list(ddf[color_col].unique())
+    colors = px.colors.qualitative.Dark24 + px.colors.qualitative.Light24
+    c_dict = dict(zip(c, colors[:len(c)]))
+    ddf['COLORS'] = ddf[color_col].map(c_dict)
+    
+    fig = px.parallel_categories(ddf, dimensions=dimensions, color='COLORS')
     fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
         height=600
@@ -38,15 +41,32 @@ def fig_parallel_categories(df, dimensions):
     return fig
 
 def get_stats(df):
-    sra_num = df.Run.count()
+    sra_num = len(df)
     biosample_num = len(df.BioSample.unique())
     bioproj_num = len(df.BioProject.unique())
 
     return f'{sra_num} Runs, {biosample_num} BioSamples, {bioproj_num} BioProjects'
 
 def dropdown_div(dimensions_dict):
+    """
+    This function is used to generate selection options
+    """
     input_list = []
 
+    # add selection option for coloring column
+    options = [{'label': key, 'value': val} for key, val in dimensions_dict.items()]
+    div = html.Div([
+        html.Label('Coloring'),
+        dcc.Dropdown(
+            id='colored_column',
+            value='Assay Type',
+            options=options
+        ),
+    ], style={'width': '12%', 'display': 'inline-block'})
+
+    input_list.append(div)
+
+    # add selection options for dimensions_dict
     for key in dimensions_dict:
         dim = dimensions_dict[key]
         available_idx = df[dim].unique()
@@ -57,10 +77,10 @@ def dropdown_div(dimensions_dict):
                 id=key,
                 options=options
             ),
-        ], style={'width': '15%', 'display': 'inline-block'})
+        ], style={'width': '12%', 'display': 'inline-block'})
 
         input_list.append(div)
-    
+        
     return input_list
 
 ########### Initiate the app
@@ -68,12 +88,7 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 server = app.server
 
 input_list = dropdown_div(dimensions_dict)
-fig = fig_parallel_categories(df, dimensions_display)
-
-# the style arguments for the main content page.
-CONTENT_STYLE = {
-    'margin': '20px 20px'
-}
+fig = fig_parallel_categories(df, dimensions_display, 'Assay Type')
 
 app.layout = html.Div([
     html.H2(
@@ -99,14 +114,9 @@ app.layout = html.Div([
             figure=fig
         )
     ], style={'width': '90%', 'display': 'inline-block', 'padding': '10 20'}),
-], style=CONTENT_STYLE)
+], style={'margin': '10 20'})
 
 
-# dimensions_dict = {
-#     'assay_type': 'Assay Type', 
-#     'library_source': 'LibrarySource', 
-#     'platform': 'Platform', 
-#     'country': 'geo_loc_name_country_continent'}
 @app.callback(
     Output('sra_sankey', 'figure'),
     Output('stats_output', 'children'),
@@ -114,8 +124,9 @@ app.layout = html.Div([
     Input('library_source', 'value'),
     Input('platform', 'value'),
     Input('continent', 'value'),
-    Input('country', 'value'))
-def update_graph(assay_type, library_source, platform, continent, country):
+    Input('country', 'value'),
+    Input('colored_column', 'value'))
+def update_graph(assay_type, library_source, platform, continent, country, colored_column):
     ddf = df
     if assay_type:
         ddf = ddf[ddf[dimensions_dict['assay_type']]==assay_type]
@@ -127,8 +138,10 @@ def update_graph(assay_type, library_source, platform, continent, country):
         ddf = ddf[ddf[dimensions_dict['continent']]==continent]
     if country:
         ddf = ddf[ddf[dimensions_dict['country']]==country]
+    if not colored_column:
+        colored_column = 'Assay Type'
     
-    fig = fig_parallel_categories(ddf, dimensions_display)
+    fig = fig_parallel_categories(ddf, dimensions_display, colored_column)
 
     return fig, get_stats(ddf)
 
