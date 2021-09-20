@@ -93,7 +93,7 @@ def dropdown_div(dimensions_dict):
 ########### Initiate the app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "SRA-Wastewater"
-#server = app.server
+server = app.server
 
 input_list = dropdown_div(dimensions_dict)
 fig = fig_parallel_categories(df, dimensions_display, 'Assay Type')
@@ -170,5 +170,5 @@ def func(n_clicks):
         "sra_wastewater.csv"
     )
 
-#if __name__ == '__main__':
-app.run_server(debug=True)
+if __name__ == '__main__':
+    app.run_server(debug=True)
