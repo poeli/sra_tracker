@@ -167,7 +167,7 @@ def func(n_clicks):
     global ddf
     return dcc.send_data_frame(
         df_sra[df_sra.Run.isin(ddf.Run)].to_csv,
-        "sra_wastewater.csv"
+        "/sra_wastewater.csv"
     )
 
 if __name__ == '__main__':
