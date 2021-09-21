@@ -4,6 +4,9 @@ import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_html_components as html
 from dash.dependencies import Input, Output
+import logging
+import sys
+from logging import Formatter
 import pandas as pd
 
 filename = "data/SraRunTable_wastewater.csv"
@@ -167,8 +170,19 @@ def func(n_clicks):
     global ddf
     return dcc.send_data_frame(
         df_sra[df_sra.Run.isin(ddf.Run)].to_csv,
-        "/sra_wastewater.csv"
+        "sra_wastewater.csv",
+        index=False
     )
 
+def log_to_stderr(app):
+    handler = logging.StreamHandler(sys.stderr)
+    handler.setFormatter(Formatter(
+        '%(asctime)s %(levelname)s: %(message)s '
+        '[in %(pathname)s:%(lineno)d]'
+    ))
+    handler.setLevel(logging.WARNING)
+    app.logger.addHandler(handler)
+
 if __name__ == '__main__':
+    log_to_stderr(app)
     app.run_server(debug=True)
