@@ -24,7 +24,7 @@ dimensions_dict = {
 }
 dimensions_display = ['Assay Type', 'LibrarySource', 'Platform', 'geo_loc_name_country_continent']
 
-df = df_sra[['Run', 'BioSample', 'BioProject', 'geo_loc_name_country']+dimensions_display]
+df = df_sra[['Run', 'BioSample', 'BioProject', 'AvgSpotLen', 'Bases', 'Center Name', 'geo_loc_name_country']+dimensions_display]
 df = df.fillna('N/A')
 ddf = df
 
@@ -47,6 +47,26 @@ def fig_parallel_categories(df, dimensions, color_col):
     )
     return fig
 
+def fig_spotlen_bases(df, color_col):
+    fig = px.scatter(df, 
+                     x="AvgSpotLen", 
+                     y="Bases", 
+                     color=color_col, 
+                     log_x=True, 
+                     log_y=True,
+                     hover_name="Run",
+                     hover_data=df.columns,
+                     template="seaborn",
+                     # marginal_x='',
+                     # marginal_y=''
+    )
+
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=20, b=20),
+        height=600
+    )
+    return fig
+
 def get_stats(df):
     """
     Get stats of Runs, BioSamples and BioProjects
@@ -56,6 +76,15 @@ def get_stats(df):
     bioproj_num = len(df.BioProject.unique())
 
     return f'{sra_num} Runs, {biosample_num} BioSamples, {bioproj_num} BioProjects'
+
+def get_bases_stats(df):
+    idx = df["AvgSpotLen"]!='N/A'
+    avgspotlen = df.loc[idx, "AvgSpotLen"].mean()
+    
+    idx = df["Bases"]!='N/A'
+    bases = df.loc[idx, "Bases"].mean()
+
+    return 'Mean AvgSpotLen: {:,.2f}bp, Mean Bases: {:,.2f}bp'.format(avgspotlen, bases)
 
 def dropdown_div(dimensions_dict):
     """
@@ -99,7 +128,9 @@ app.title = "SRA-Wastewater"
 server = app.server
 
 input_list = dropdown_div(dimensions_dict)
+
 fig = fig_parallel_categories(df, dimensions_display, 'Assay Type')
+fig_sc = fig_spotlen_bases(df, 'Center Name')
 
 app.layout = html.Div([
     html.H2(
@@ -125,6 +156,19 @@ app.layout = html.Div([
             figure=fig
         )
     ], style={'width': '90%', 'display': 'inline-block', 'padding': '10px 20px'}),
+    html.Div(
+        id='bases_stats_output',
+        children='Mean AvgSpotLen: #, Mean Bases: #',
+        style={
+            'color': '#777777'
+        }
+    ),
+    html.Div([
+        dcc.Graph(
+            id='sra_scatter',
+            figure=fig_sc
+        )
+    ], style={'width': '90%', 'display': 'inline-block', 'padding': '10px 20px'}),
     html.Div([
         dbc.Button("Export SRA", color="primary", id="btn_csv", className="mr-1"),
         dcc.Download(id="download-dataframe-csv")
@@ -134,7 +178,9 @@ app.layout = html.Div([
 
 @app.callback(
     Output('sra_sankey', 'figure'),
+    Output('sra_scatter', 'figure'),
     Output('stats_output', 'children'),
+    Output('bases_stats_output', 'children'),
     Input('assay_type', 'value'),
     Input('library_source', 'value'),
     Input('platform', 'value'),
@@ -157,9 +203,11 @@ def update_graph(assay_type, library_source, platform, continent, country, color
     if not colored_column:
         colored_column = 'Assay Type'
     
-    fig = fig_parallel_categories(ddf, dimensions_display, colored_column)
+    fig    = fig_parallel_categories(ddf, dimensions_display, colored_column)
+    fig_sc = fig_spotlen_bases(ddf, color_col='Center Name')
+    
+    return fig, fig_sc, get_stats(ddf), get_bases_stats(ddf)
 
-    return fig, get_stats(ddf)
 
 @app.callback(
     Output("download-dataframe-csv", "data"),
@@ -170,8 +218,7 @@ def func(n_clicks):
     global ddf
     return dcc.send_data_frame(
         df_sra[df_sra.Run.isin(ddf.Run)].to_csv,
-        "sra_wastewater.csv",
-        index=False
+        "sra_wastewater.csv"
     )
 
 def log_to_stderr(app):
