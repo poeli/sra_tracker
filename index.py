@@ -78,18 +78,17 @@ def get_stats(df):
     return f'{sra_num} Runs, {biosample_num} BioSamples, {bioproj_num} BioProjects'
 
 def get_bases_stats(df):
+    """ Get Mean AvgSpotLen and Mean Bases """
     idx = df["AvgSpotLen"]!='N/A'
     avgspotlen = df.loc[idx, "AvgSpotLen"].mean()
     
     idx = df["Bases"]!='N/A'
-    bases = df.loc[idx, "Bases"].mean()
+    mbases = df.loc[idx, "Bases"].mean()/1e7
 
-    return 'Mean AvgSpotLen: {:,.2f}bp, Mean Bases: {:,.2f}bp'.format(avgspotlen, bases)
+    return 'Mean AvgSpotLen: {:,.2f} bp, Mean Bases: {:,.2f}M bp'.format(avgspotlen, mbases)
 
 def dropdown_div(dimensions_dict):
-    """
-    Generate selection options based on the argument dict
-    """
+    """ Generate selection options based on the argument dict """
     input_list = []
 
     # add selection option for coloring column
@@ -129,9 +128,6 @@ server = app.server
 
 input_list = dropdown_div(dimensions_dict)
 
-fig = fig_parallel_categories(df, dimensions_display, 'Assay Type')
-fig_sc = fig_spotlen_bases(df, 'Center Name')
-
 app.layout = html.Div([
     html.H2(
         children='Wastewater metagenome',
@@ -152,13 +148,18 @@ app.layout = html.Div([
     ),
     html.Div([
         dcc.Graph(
-            id='sra_sankey',
-            figure=fig
+            id='sra_sankey'
         )
-    ], style={'width': '90%', 'display': 'inline-block', 'padding': '10px 20px'}),
+    ], style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}),
+    html.Div([
+        html.Label('Display selected sequencing center'),
+        dcc.Dropdown(
+            id='center_name_dropdown',
+            multi=True
+        )
+    ],style={'padding': '15px 5px'}),
     html.Div(
         id='bases_stats_output',
-        children='Mean AvgSpotLen: #, Mean Bases: #',
         style={
             'color': '#777777'
         }
@@ -166,28 +167,29 @@ app.layout = html.Div([
     html.Div([
         dcc.Graph(
             id='sra_scatter',
-            figure=fig_sc
         )
-    ], style={'width': '90%', 'display': 'inline-block', 'padding': '10px 20px'}),
+    ], style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}),
     html.Div([
         dbc.Button("Export SRA", color="primary", id="btn_csv", className="mr-1"),
         dcc.Download(id="download-dataframe-csv")
     ]),
 ], style={'margin': '10px 20px'})
 
-
 @app.callback(
     Output('sra_sankey', 'figure'),
     Output('sra_scatter', 'figure'),
     Output('stats_output', 'children'),
     Output('bases_stats_output', 'children'),
+    Output('center_name_dropdown', 'options'),
     Input('assay_type', 'value'),
     Input('library_source', 'value'),
     Input('platform', 'value'),
     Input('continent', 'value'),
     Input('country', 'value'),
-    Input('colored_column', 'value'))
-def update_graph(assay_type, library_source, platform, continent, country, colored_column):
+    Input('colored_column', 'value'),
+    [Input('center_name_dropdown', 'value')],
+)
+def update_graph(assay_type, library_source, platform, continent, country, colored_column, selected_center):
     global ddf
     ddf = df
     if assay_type:
@@ -202,12 +204,21 @@ def update_graph(assay_type, library_source, platform, continent, country, color
         ddf = ddf[ddf[dimensions_dict['country']]==country]
     if not colored_column:
         colored_column = 'Assay Type'
-    
-    fig    = fig_parallel_categories(ddf, dimensions_display, colored_column)
-    fig_sc = fig_spotlen_bases(ddf, color_col='Center Name')
-    
-    return fig, fig_sc, get_stats(ddf), get_bases_stats(ddf)
 
+    fig = fig_parallel_categories(ddf, dimensions_display, colored_column)
+    
+    # generate options for center_name_dropdown
+    options = [{'label': center_name, 'value': center_name} for center_name in ddf['Center Name'].unique()]
+
+    # cross-filtering with sequencing centers
+    ddf_center = ddf
+    if selected_center:
+        ddf_center = ddf[ddf['Center Name'].isin(selected_center)]
+    
+    fig_sc = fig_spotlen_bases(ddf_center, color_col='Center Name')    
+
+
+    return fig, fig_sc, get_stats(ddf), get_bases_stats(ddf_center), options
 
 @app.callback(
     Output("download-dataframe-csv", "data"),
@@ -216,20 +227,11 @@ def update_graph(assay_type, library_source, platform, continent, country, color
 )
 def func(n_clicks):
     global ddf
-    return dcc.send_data_frame(
-        df_sra[df_sra.Run.isin(ddf.Run)].to_csv,
-        "sra_wastewater.csv"
-    )
-
-def log_to_stderr(app):
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(Formatter(
-        '%(asctime)s %(levelname)s: %(message)s '
-        '[in %(pathname)s:%(lineno)d]'
-    ))
-    handler.setLevel(logging.WARNING)
-    app.logger.addHandler(handler)
+    if n_clicks is None:
+        raise dash.exceptions.PreventUpdate
+    else:
+        content=df_sra[df_sra.Run.isin(ddf.Run)].to_csv(index=False)
+        return dict(content=content, filename="sra_wastewater.csv")
 
 if __name__ == '__main__':
-    log_to_stderr(app)
     app.run_server(debug=True)
