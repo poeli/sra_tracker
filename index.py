@@ -24,8 +24,23 @@ dimensions_dict = {
 }
 dimensions_display = ['Assay Type', 'LibrarySource', 'Platform', 'geo_loc_name_country_continent']
 
-df = df_sra[['Run', 'BioSample', 'BioProject', 'AvgSpotLen', 'Bases', 'Center Name', 'geo_loc_name_country']+dimensions_display]
+df = df_sra[['Run', 'BioSample', 'BioProject', 'AvgSpotLen', 'Bases', 'Center Name', 'geo_loc_name_country','lat_lon']+dimensions_display]
 df = df.fillna('N/A')
+
+df[['lat','ns','lon','ew']] = df['lat_lon'].str.extract(f'^(\S+) (\w) (\S+) (\w)$', expand=True)
+
+# fix lon errors
+df.lon = df.lon.replace('0.006.0179250', '6.0179250')
+df.lat = df.lat.astype(float)
+df.lon = df.lon.astype(float)
+
+# convert 
+idx = df.ns=='S'
+df.loc[idx,'lat'] = -df.loc[idx,'lat']
+idx = df.ew=='W'
+df.loc[idx,'lon'] = -df.loc[idx,'lon']
+
+df = df.drop(columns=['lat_lon', 'ns', 'ew'])
 ddf = df
 
 def fig_parallel_categories(df, dimensions, color_col):
@@ -56,15 +71,52 @@ def fig_spotlen_bases(df, color_col):
                      log_y=True,
                      hover_name="Run",
                      hover_data=df.columns,
-                     template="seaborn",
-                     # marginal_x='',
-                     # marginal_y=''
+                     template="simple_white",
     )
 
     fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
         height=600
     )
+    
+    fig.update_traces(
+        marker=dict(
+            size=10,
+            opacity=0.6,
+            line=dict(
+                color='white',
+                width=1
+            )
+        )
+    )
+
+    return fig
+
+def fig_geo_stats(df):
+    ddf = df[df.lat.notna()].groupby(['lat','lon']).agg({'Run': 'count',
+                                                         'BioSample': pd.Series.nunique, 
+                                                         'BioProject': pd.Series.nunique, 
+                                                         'Center Name': lambda x: ', '.join(sorted(pd.Series.unique(x))),
+                                                         'geo_loc_name_country': 'first',
+                                                        }).reset_index()
+
+    fig = px.scatter_mapbox(ddf,
+                            lat="lat", 
+                            lon="lon",     
+                            color="geo_loc_name_country",
+                            size="Run",
+                            size_max=30,
+                            template='simple_white',
+                            hover_name="geo_loc_name_country",
+                            hover_data=ddf.columns,
+                            mapbox_style="carto-positron",
+                            center={'lat': 39.7, 'lon': -105.2},
+                            zoom=1)
+    fig.update_layout(
+        margin=dict(l=20, r=20, t=20, b=20),
+        height=600
+    )
+
     return fig
 
 def get_stats(df):
@@ -121,63 +173,92 @@ def dropdown_div(dimensions_dict):
         
     return input_list
 
+# layout
+input_list = dropdown_div(dimensions_dict)
+
+layout_dcc = html.Div(
+    children=[
+        html.H2(
+            children='Wastewater metagenome',
+            style={'color': '#333333'}
+        ),
+        html.Div(
+            id='stats_output',
+            style={'color': '#777777'}
+        ),
+        html.Div(
+            input_list, 
+            style={'padding': '15px 5px'}
+        ),
+        html.Div(
+            children=[
+                dcc.Loading(
+                    children=[
+                        dcc.Graph(id='sra_sankey')
+                    ],
+                    color='#AAAAAA'
+                )
+            ],
+            style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}
+        ),
+        html.Div(
+            children=[
+                html.Label('Display selected sequencing center'),
+                dcc.Dropdown(
+                    id='center_name_dropdown',
+                    multi=True
+                )
+            ],
+            style={'padding': '15px 5px'}
+        ),
+        html.Div(
+            id='bases_stats_output',
+            style={'color': '#777777'}
+        ),
+        html.Div(
+            children=[
+                dcc.Loading(
+                    children=[
+                        dcc.Graph(id='sra_scatter')
+                    ],
+                    color='#AAAAAA'
+                )
+            ],
+            style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}
+        ),
+        html.Div(
+            children=[
+                dcc.Loading(
+                    children=[
+                        dcc.Graph(id='sra_geo')
+                    ],
+                    color='#AAAAAA'
+                )
+            ],
+            style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}
+        ),
+        html.Div(
+            children=[
+                dbc.Button("Export SRA", color="primary", id="btn_csv", className="mr-1"),
+                dcc.Download(id="download-dataframe-csv")
+            ]
+        ),
+    ],
+    style={'margin': '10px 20px'}
+)
+
+
 ########### Initiate the app
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
 app.title = "SRA-Wastewater"
 server = app.server
 
-input_list = dropdown_div(dimensions_dict)
-
-app.layout = html.Div([
-    html.H2(
-        children='Wastewater metagenome',
-        style={
-            'color': '#333333'
-        }
-    ),
-    html.Div(
-        id='stats_output',
-        children='# Runs, # BioSamples, # BioProjects', 
-        style={
-            'color': '#777777'
-        }
-    ),
-    html.Div(
-        input_list, 
-        style={'padding': '15px 5px'}
-    ),
-    html.Div([
-        dcc.Graph(
-            id='sra_sankey'
-        )
-    ], style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}),
-    html.Div([
-        html.Label('Display selected sequencing center'),
-        dcc.Dropdown(
-            id='center_name_dropdown',
-            multi=True
-        )
-    ],style={'padding': '15px 5px'}),
-    html.Div(
-        id='bases_stats_output',
-        style={
-            'color': '#777777'
-        }
-    ),
-    html.Div([
-        dcc.Graph(
-            id='sra_scatter',
-        )
-    ], style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}),
-    html.Div([
-        dbc.Button("Export SRA", color="primary", id="btn_csv", className="mr-1"),
-        dcc.Download(id="download-dataframe-csv")
-    ]),
-], style={'margin': '10px 20px'})
+app.layout = layout_dcc
 
 @app.callback(
     Output('sra_sankey', 'figure'),
     Output('sra_scatter', 'figure'),
+    Output('sra_geo', 'figure'),
     Output('stats_output', 'children'),
     Output('bases_stats_output', 'children'),
     Output('center_name_dropdown', 'options'),
@@ -217,8 +298,10 @@ def update_graph(assay_type, library_source, platform, continent, country, color
     
     fig_sc = fig_spotlen_bases(ddf_center, color_col='Center Name')    
 
+    # generate geo plots
+    fig_geo = fig_geo_stats(ddf_center)
 
-    return fig, fig_sc, get_stats(ddf), get_bases_stats(ddf_center), options
+    return fig, fig_sc, fig_geo, get_stats(ddf), get_bases_stats(ddf_center), options
 
 @app.callback(
     Output("download-dataframe-csv", "data"),
