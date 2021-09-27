@@ -145,36 +145,51 @@ def dropdown_div(dimensions_dict):
 
     # add selection option for coloring column
     options = [{'label': key, 'value': val} for key, val in dimensions_dict.items()]
-    div = html.Div([
-        html.Label('Coloring'),
-        dcc.Dropdown(
-            id='colored_column',
-            value='Assay Type',
-            options=options
-        ),
-    ], style={'width': '12%', 'display': 'inline-block'})
+    col = dbc.Col(
+        children = [
+            html.Label('Coloring'),
+            dcc.Dropdown(
+                id='colored_column',
+                value='Assay Type',
+                options=options
+            ),
+        ]
+    )
 
-    input_list.append(div)
+    input_list.append(col)
 
     # add selection options for dimensions_dict
     for key in dimensions_dict:
         dim = dimensions_dict[key]
         available_idx = df[dim].unique()
         options = [{'label': i, 'value': i} for i in available_idx]
-        div = html.Div([
-            html.Label(key),
-            dcc.Dropdown(
-                id=key,
-                options=options
-            ),
-        ], style={'width': '12%', 'display': 'inline-block'})
+        
+        col = dbc.Col(
+            children = [
+                html.Label(key),
+                dcc.Dropdown(
+                    id=key,
+                    options=options
+                ),
+            ]
+        )
 
-        input_list.append(div)
+        input_list.append(col)
         
     return input_list
 
+
 # layout
 input_list = dropdown_div(dimensions_dict)
+
+col = dbc.Col(
+        children = [
+            dbc.Button("Export SRA", color="primary", id="btn_csv", className="mr-1"),
+            dcc.Download(id="download-dataframe-csv")
+        ]
+)
+
+input_list.append(col)
 
 layout_dcc = html.Div(
     children=[
@@ -186,8 +201,9 @@ layout_dcc = html.Div(
             id='stats_output',
             style={'color': '#777777'}
         ),
-        html.Div(
+        dbc.Row(
             input_list, 
+            align='end',
             style={'padding': '15px 5px'}
         ),
         html.Div(
@@ -237,19 +253,12 @@ layout_dcc = html.Div(
             ],
             style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}
         ),
-        html.Div(
-            children=[
-                dbc.Button("Export SRA", color="primary", id="btn_csv", className="mr-1"),
-                dcc.Download(id="download-dataframe-csv")
-            ]
-        ),
     ],
     style={'margin': '10px 20px'}
 )
 
-
 ########### Initiate the app
-app = dash.Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP])
+app = dash.Dash(__name__, external_stylesheets=[dbc.themes.PULSE])
 app.title = "SRA-Wastewater"
 server = app.server
 
