@@ -16,11 +16,11 @@ df_sra['collection_date'] = pd.to_datetime(df_sra['collection_date'], errors='co
 df_sra['year'] = pd.DatetimeIndex(df_sra['collection_date']).year
 
 dimensions_dict = {
-    'assay_type': 'Assay Type', 
-    'library_source': 'LibrarySource', 
-    'platform': 'Platform', 
-    'continent': 'geo_loc_name_country_continent',
-    'country': 'geo_loc_name_country'
+    'Assay type': 'Assay Type', 
+    'Library source': 'LibrarySource', 
+    'Platform': 'Platform', 
+    'Continent': 'geo_loc_name_country_continent',
+    'Country': 'geo_loc_name_country',
 }
 dimensions_display = ['Assay Type', 'LibrarySource', 'Platform', 'geo_loc_name_country_continent']
 
@@ -76,12 +76,12 @@ def fig_spotlen_bases(df, color_col):
 
     fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
-        height=600
+        height=600,
     )
     
     fig.update_traces(
         marker=dict(
-            size=10,
+            size=7,
             opacity=0.6,
             line=dict(
                 color='white',
@@ -204,6 +204,7 @@ layout_dcc = html.Div(
         dbc.Row(
             input_list, 
             align='end',
+            no_gutters=True,
             style={'padding': '15px 5px'}
         ),
         html.Div(
@@ -271,11 +272,11 @@ app.layout = layout_dcc
     Output('stats_output', 'children'),
     Output('bases_stats_output', 'children'),
     Output('center_name_dropdown', 'options'),
-    Input('assay_type', 'value'),
-    Input('library_source', 'value'),
-    Input('platform', 'value'),
-    Input('continent', 'value'),
-    Input('country', 'value'),
+    Input('Assay type', 'value'),
+    Input('Library source', 'value'),
+    Input('Platform', 'value'),
+    Input('Continent', 'value'),
+    Input('Country', 'value'),
     Input('colored_column', 'value'),
     [Input('center_name_dropdown', 'value')],
 )
@@ -326,4 +327,4 @@ def func(n_clicks):
         return dict(content=content, filename="sra_wastewater.csv")
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)
