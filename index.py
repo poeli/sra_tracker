@@ -284,15 +284,15 @@ def update_graph(assay_type, library_source, platform, continent, country, color
     global ddf
     ddf = df
     if assay_type:
-        ddf = ddf[ddf[dimensions_dict['assay_type']]==assay_type]
+        ddf = ddf[ddf[dimensions_dict['Assay type']]==assay_type]
     if library_source:
-        ddf = ddf[ddf[dimensions_dict['library_source']]==library_source]
+        ddf = ddf[ddf[dimensions_dict['Library source']]==library_source]
     if platform:
-        ddf = ddf[ddf[dimensions_dict['platform']]==platform]
+        ddf = ddf[ddf[dimensions_dict['Platform']]==platform]
     if continent:
-        ddf = ddf[ddf[dimensions_dict['continent']]==continent]
+        ddf = ddf[ddf[dimensions_dict['Continent']]==continent]
     if country:
-        ddf = ddf[ddf[dimensions_dict['country']]==country]
+        ddf = ddf[ddf[dimensions_dict['Country']]==country]
     if not colored_column:
         colored_column = 'Assay Type'
 
