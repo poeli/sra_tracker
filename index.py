@@ -62,6 +62,7 @@ def fig_parallel_categories(df, dimensions, color_col):
     )
     return fig
 
+
 def fig_spotlen_bases(df, color_col):
     fig = px.scatter(df, 
                      x="AvgSpotLen", 
@@ -71,12 +72,13 @@ def fig_spotlen_bases(df, color_col):
                      log_y=True,
                      hover_name="Run",
                      hover_data=df.columns,
-                     template="simple_white",
+                     template="seaborn",
     )
 
     fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
-        height=600,
+        height=500,
+        showlegend=False
     )
     
     fig.update_traces(
@@ -91,6 +93,7 @@ def fig_spotlen_bases(df, color_col):
     )
 
     return fig
+
 
 def fig_geo_stats(df):
     ddf = df[df.lat.notna()].groupby(['lat','lon']).agg({'Run': 'count',
@@ -114,10 +117,12 @@ def fig_geo_stats(df):
                             zoom=1)
     fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
-        height=600
+        height=500,
+        showlegend=False
     )
 
     return fig
+
 
 def get_stats(df):
     """
@@ -232,27 +237,31 @@ layout_dcc = html.Div(
             id='bases_stats_output',
             style={'color': '#777777'}
         ),
-        html.Div(
+        dbc.Row(
             children=[
-                dcc.Loading(
+                dbc.Col(
                     children=[
-                        dcc.Graph(id='sra_scatter')
+                        dcc.Loading(
+                            children=[
+                                dcc.Graph(id='sra_geo')
+                            ],
+                            color='#AAAAAA'
+                        )
                     ],
-                    color='#AAAAAA'
-                )
+                ),
+                dbc.Col(
+                    children = [
+                        dcc.Loading(
+                            children=[
+                                dcc.Graph(id='sra_scatter')
+                            ],
+                            color='#AAAAAA'
+                        )
+                    ]
+                ),
             ],
-            style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}
-        ),
-        html.Div(
-            children=[
-                dcc.Loading(
-                    children=[
-                        dcc.Graph(id='sra_geo')
-                    ],
-                    color='#AAAAAA'
-                )
-            ],
-            style={'width': '100%', 'display': 'inline-block', 'padding': '10px 20px'}
+            no_gutters=True,
+            style={'padding': '15px 5px'}
         ),
     ],
     style={'margin': '10px 20px'}
