@@ -10,10 +10,8 @@ from logging import Formatter
 import pandas as pd
 
 filename = "data/SraRunTable_wastewater.csv"
-df_sra = pd.read_csv(filename)
-df_sra['collection_date'] = df_sra['collection_date'].str.split('/').str[0]
-df_sra['collection_date'] = pd.to_datetime(df_sra['collection_date'], errors='coerce', utc=True)
-df_sra['year'] = pd.DatetimeIndex(df_sra['collection_date']).year
+df = pd.read_pickle(f'{filename}.pkl')
+ddf = df
 
 dimensions_dict = {
     'Assay type': 'Assay Type', 
@@ -23,25 +21,6 @@ dimensions_dict = {
     'Country': 'geo_loc_name_country',
 }
 dimensions_display = ['Assay Type', 'LibrarySource', 'Platform', 'geo_loc_name_country_continent']
-
-df = df_sra[['Run', 'BioSample', 'BioProject', 'AvgSpotLen', 'Bases', 'Center Name', 'geo_loc_name_country','lat_lon']+dimensions_display]
-df = df.fillna('N/A')
-
-df[['lat','ns','lon','ew']] = df['lat_lon'].str.extract(f'^(\S+) (\w) (\S+) (\w)$', expand=True)
-
-# fix lon errors
-df.lon = df.lon.replace('0.006.0179250', '6.0179250')
-df.lat = df.lat.astype(float)
-df.lon = df.lon.astype(float)
-
-# convert 
-idx = df.ns=='S'
-df.loc[idx,'lat'] = -df.loc[idx,'lat']
-idx = df.ew=='W'
-df.loc[idx,'lon'] = -df.loc[idx,'lon']
-
-df = df.drop(columns=['lat_lon', 'ns', 'ew'])
-ddf = df
 
 def fig_parallel_categories(df, dimensions, color_col):
     """
