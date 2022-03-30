@@ -1,8 +1,7 @@
 import plotly.express as px
 import dash
-import dash_core_components as dcc
+from dash import dcc, html
 import dash_bootstrap_components as dbc
-import dash_html_components as html
 from dash.dependencies import Input, Output
 import logging
 import sys
@@ -188,7 +187,6 @@ layout_dcc = html.Div(
         dbc.Row(
             input_list, 
             align='end',
-            no_gutters=True,
             style={'padding': '15px 5px'}
         ),
         html.Div(
@@ -239,7 +237,6 @@ layout_dcc = html.Div(
                     ]
                 ),
             ],
-            no_gutters=True,
             style={'padding': '15px 5px'}
         ),
     ],
