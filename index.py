@@ -7,6 +7,7 @@ import logging
 import sys
 from logging import Formatter
 import pandas as pd
+from datetime import datetime
 
 filename = "data/SraRunTable_wastewater.csv"
 df = pd.read_pickle(f'{filename}.pkl')
@@ -110,7 +111,7 @@ def get_stats(df):
     biosample_num = len(df.BioSample.unique())
     bioproj_num = len(df.BioProject.unique())
 
-    return f'{sra_num} Runs, {biosample_num} BioSamples, {bioproj_num} BioProjects'
+    return f'{sra_num} Runs, {biosample_num} BioSamples, {bioproj_num} BioProjects, as of NCBI SRA {str(datetime.now().date())}'
 
 def get_bases_stats(df):
     """ Get Mean AvgSpotLen and Mean Bases """
