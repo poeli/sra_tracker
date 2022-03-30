@@ -1,9 +1,7 @@
 gunicorn
 plotly
-dash<2
-dash_core_components
+dash>2
 dash_bootstrap_components
-dash_html_components
 pandas
 numpy
 geopy
