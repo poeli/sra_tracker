@@ -209,8 +209,6 @@ def generate_fig_sample_time(dff, color_data):
     df = dff.groupby(['week', coloring_field]).count()['Run'].reset_index()
     df.week = df.week.astype(str)
     
-    logging.info(df)
-
     fig = px.bar(
         df, 
         x='week', 
@@ -218,7 +216,7 @@ def generate_fig_sample_time(dff, color_data):
         color=coloring_field,
         color_discrete_map=color_map,
         template='simple_white',
-        log_y=True,
+        # log_y=True,
         custom_data=[coloring_field],
         labels={
              "week": "Week of collection",
@@ -362,7 +360,7 @@ layout_dcc = html.Div(
         html.Footer(
             children=[
                 html.P(f'The metadata used in the website are downloaded from NCBI SRA database as of {str(datetime.now().date())}'),
-                '© Copyright 2022 Los Alamos National Laboratory',
+                'Los Alamos National Laboratory © Copyright 2022',
             ],
             style={'width': '100%', 'display': 'inline-block', 'margin': '30px auto', 'text-align': 'center'}
         ),
