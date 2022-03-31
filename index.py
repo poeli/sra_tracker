@@ -487,7 +487,7 @@ def update_graph(selected_center, color_data):
     # cross-filtering with sequencing centers
     # fig_sc = fig_spotlen_bases(ddf_center, 'Center Name')
     fig_sc = generate_fig_sample_time(ddf_center, color_data)
-    
+
     # generate geo plots
     fig_geo = fig_geo_stats(ddf_center)
 
@@ -507,4 +507,4 @@ def func(n_clicks):
         return dict(content=content, filename="sra_wastewater.csv")
 
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    app.run_server(debug=False)
