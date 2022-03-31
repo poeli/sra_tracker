@@ -1,3 +1,4 @@
+from cmath import log
 import plotly.express as px
 import dash
 from dash import dcc, html
@@ -8,6 +9,12 @@ import sys
 from logging import Formatter
 import pandas as pd
 from datetime import datetime
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M',
+)
 
 filename = "data/SraRunTable_wastewater.csv"
 df = pd.read_pickle(f'{filename}.pkl')
@@ -111,7 +118,7 @@ def get_stats(df):
     biosample_num = len(df.BioSample.unique())
     bioproj_num = len(df.BioProject.unique())
 
-    return f'{sra_num} Runs, {biosample_num} BioSamples, {bioproj_num} BioProjects, as of NCBI SRA {str(datetime.now().date())}'
+    return f'{sra_num} Runs, {biosample_num} BioSamples, {bioproj_num} BioProjects'
 
 def get_bases_stats(df):
     """ Get Mean AvgSpotLen and Mean Bases """
@@ -177,6 +184,7 @@ input_list.append(col)
 
 layout_dcc = html.Div(
     children=[
+        dcc.Store(id='aggregate_data'),
         html.H2(
             children='Wastewater metagenome',
             style={'color': '#333333'}
@@ -240,6 +248,13 @@ layout_dcc = html.Div(
             ],
             style={'padding': '15px 5px'}
         ),
+        html.Footer(
+            children=[
+                html.P(f'The metadata used in the website are downloaded from NCBI SRA database as of {str(datetime.now().date())}'),
+                '© Copyright 2022 Los Alamos National Laboratory',
+            ],
+            style={'width': '100%', 'display': 'inline-block', 'margin': '30px auto', 'text-align': 'center'}
+        ),
     ],
     style={'margin': '10px 20px'}
 )
@@ -252,52 +267,96 @@ server = app.server
 app.layout = layout_dcc
 
 @app.callback(
-    Output('sra_sankey', 'figure'),
-    Output('sra_scatter', 'figure'),
-    Output('sra_geo', 'figure'),
-    Output('stats_output', 'children'),
-    Output('bases_stats_output', 'children'),
-    Output('center_name_dropdown', 'options'),
+    Output('aggregate_data', 'data'),
     Input('Assay type', 'value'),
     Input('Library source', 'value'),
     Input('Platform', 'value'),
     Input('Continent', 'value'),
     Input('Country', 'value'),
     Input('colored_column', 'value'),
-    [Input('center_name_dropdown', 'value')],
 )
-def update_graph(assay_type, library_source, platform, continent, country, colored_column, selected_center):
+def update_df(assay_type, library_source, platform, continent, country, colored_column):
     global ddf
-    ddf = df
-    if assay_type:
-        ddf = ddf[ddf[dimensions_dict['Assay type']]==assay_type]
-    if library_source:
-        ddf = ddf[ddf[dimensions_dict['Library source']]==library_source]
-    if platform:
-        ddf = ddf[ddf[dimensions_dict['Platform']]==platform]
-    if continent:
-        ddf = ddf[ddf[dimensions_dict['Continent']]==continent]
-    if country:
-        ddf = ddf[ddf[dimensions_dict['Country']]==country]
-    if not colored_column:
-        colored_column = 'Assay Type'
 
-    fig = fig_parallel_categories(ddf, dimensions_display, colored_column)
+    data = dict(
+        assay_type = assay_type,
+        library_source = library_source, 
+        platform = platform, 
+        continent = continent,
+        country = country, 
+        colored_column = colored_column,
+    )
+
+    query_list = []
+    if assay_type:
+        field = dimensions_dict['Assay type']
+        value = assay_type
+        query_list.append(f'`{field}`=="{value}"')
+    if library_source:
+        field = dimensions_dict['Library source']
+        value = library_source
+        query_list.append(f'`{field}`=="{value}"')
+    if platform:
+        field = dimensions_dict['Platform']
+        value = platform
+        query_list.append(f'`{field}`=="{value}"')
+    if continent:
+        field = dimensions_dict['Continent']
+        value = continent
+        query_list.append(f'`{field}`=="{value}"')
+    if country:
+        field = dimensions_dict['Country']
+        value = country
+        query_list.append(f'`{field}`=="{value}"')
+
+    query_text = ' & '.join(query_list)
+
+    if query_text:
+        logging.debug(query_text)
+        ddf = df.query(query_text)
+
+    return data
+
+
+@app.callback(
+    Output('sra_sankey', 'figure'),
+    Output('stats_output', 'children'),
+    Output('center_name_dropdown', 'options'),
+    Input('aggregate_data', 'data'),
+)
+def update_sankey_graph(data):
+    global ddf
+
+    fig = fig_parallel_categories(ddf, dimensions_display, data['colored_column'])
     
     # generate options for center_name_dropdown
     options = [{'label': center_name, 'value': center_name} for center_name in ddf['Center Name'].unique()]
 
-    # cross-filtering with sequencing centers
+    return fig, get_stats(ddf), options
+
+@app.callback(
+    Output('sra_scatter', 'figure'),
+    Output('sra_geo', 'figure'),
+    Output('bases_stats_output', 'children'),
+    Input('center_name_dropdown', 'value'),
+    Input('aggregate_data', 'data'),
+)
+def update_graph(selected_center, data):
+    global ddf
     ddf_center = ddf
+
+    # selecting centers
     if selected_center:
-        ddf_center = ddf[ddf['Center Name'].isin(selected_center)]
-    
+        idx = ddf['Center Name'].isin(selected_center)
+        ddf_center = ddf[idx]
+
+    # cross-filtering with sequencing centers
     fig_sc = fig_spotlen_bases(ddf_center, color_col='Center Name')    
 
     # generate geo plots
     fig_geo = fig_geo_stats(ddf_center)
 
-    return fig, fig_sc, fig_geo, get_stats(ddf), get_bases_stats(ddf_center), options
+    return fig_sc, fig_geo, get_stats(ddf_center)
 
 @app.callback(
     Output("download-dataframe-csv", "data"),
