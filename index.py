@@ -1,4 +1,5 @@
 from cmath import log
+from email.policy import default
 import plotly.express as px
 import dash
 from dash import Dash, dcc, html, State, Input, Output, dash_table
@@ -18,6 +19,7 @@ logging.basicConfig(
 filename = "data/SraRunTable_wastewater.csv"
 df = pd.read_pickle(f'{filename}.pkl')
 ddf = df
+ddf_range = df
 
 param_data = {}
 default_color_data = {}
@@ -94,6 +96,10 @@ def fig_geo_stats(df):
                             lat="lat", 
                             lon="lon",     
                             color="geo_loc_name_country",
+                            labels={
+                                'geo_loc_name_country_continent': 'Continent',
+                                'geo_loc_name_country': 'Country',
+                            },
                             size="Run",
                             size_max=30,
                             template='simple_white',
@@ -101,11 +107,12 @@ def fig_geo_stats(df):
                             hover_data=ddf.columns,
                             mapbox_style="carto-positron",
                             center={'lat': 39.7, 'lon': -105.2},
-                            zoom=1)
+                            zoom=1.35)
+
     fig.update_layout(
         margin=dict(l=20, r=20, t=20, b=20),
-        height=500,
-        showlegend=False
+        height=600,
+        showlegend=True
     )
 
     return fig
@@ -225,15 +232,24 @@ def generate_fig_sample_time(dff, color_data):
     )
     
     fig.update_traces(
-         hovertemplate="Collection date: %{x}<br>" +
+         hovertemplate="Week of collection: %{x}<br>" +
                        "Number of runs: %{y}<br><br>"
     )
     
+    def month_since_covid19():
+        d1 = datetime.today()
+        d2 = datetime(2019,12,7)
+        return (d1.year - d2.year) * 12 + d1.month - d2.month
+
     # Add range slider
     fig.update_layout(
         xaxis=dict(
             rangeselector=dict(
                 buttons=list([
+                    dict(count=month_since_covid19(),
+                         label="COVID19",
+                         step="month",
+                         stepmode="backward"),
                     dict(count=1,
                          label="1m",
                          step="month",
@@ -250,13 +266,17 @@ def generate_fig_sample_time(dff, color_data):
                          label="1y",
                          step="year",
                          stepmode="backward"),
-                    dict(step="all")
-                ])
+                    dict(step="all"),
+                ]),
             ),
             rangeslider=dict(
                 visible=True
             ),
             type="date"
+        ),
+        yaxis=dict(
+            autorange=True,
+            type='linear'
         )
     )
 
@@ -292,7 +312,7 @@ input_list.append(col)
 layout_dcc = html.Div(
     children=[
         dcc.Store(id='aggregate_data'),
-        dcc.Store(id='center_data'),
+        dcc.Store(id='time_range_data'),
         dcc.Store(id='color_mapping'),
         html.H2(
             children='Wastewater metagenome',
@@ -320,6 +340,17 @@ layout_dcc = html.Div(
         ),
         html.Div(
             children=[
+                dcc.Loading(
+                    children=[
+                        dcc.Graph(id='sra_week')
+                    ],
+                    color='#AAAAAA'
+                )
+            ],
+            style={'margin': '15px 5px'}
+        ),
+        html.Div(
+            children=[
                 html.Label('Display selected sequencing center'),
                 dcc.Dropdown(
                     id='center_name_dropdown',
@@ -344,6 +375,11 @@ layout_dcc = html.Div(
                         )
                     ],
                 ),
+            ],
+            style={'margin': '15px 5px'}
+        ),
+        dbc.Row(
+            children=[
                 dbc.Col(
                     children = [
                         dcc.Loading(
@@ -355,14 +391,21 @@ layout_dcc = html.Div(
                     ]
                 ),
             ],
-            style={'padding': '15px 5px'}
+            style={'margin': '15px 5px'}
         ),
         html.Footer(
             children=[
-                html.P(f'The metadata used in the website are downloaded from NCBI SRA database as of {str(datetime.now().date())}'),
+                f'The metadata used in the website are downloaded from NCBI SRA database as of {str(datetime.now().date())}',
+                html.Br(),
                 'Los Alamos National Laboratory © Copyright 2022',
             ],
-            style={'width': '100%', 'display': 'inline-block', 'margin': '30px auto', 'text-align': 'center'}
+            style={'width': '100%', 
+                   'display': 'inline-block', 
+                   'margin': '30px auto', 
+                   'text-align': 'center',
+                   'color': '#777777',
+                   'font-size': '0.8em',
+                   }
         ),
     ],
     style={'margin': '10px 20px'}
@@ -375,9 +418,11 @@ server = app.server
 
 app.layout = layout_dcc
 
+"""
+filtering based on selection of parameters -> aggregate_data
+"""
 @app.callback(
     Output('aggregate_data', 'data'),
-    Output('center_data', 'data'),
     Input('Assay type', 'value'),
     Input('Library source', 'value'),
     Input('Platform', 'value'),
@@ -386,9 +431,13 @@ app.layout = layout_dcc
     State('colored_column', 'value'),
 )
 def update_agg_data(assay_type, library_source, platform, continent, country, coloring_field):
+    global df
     global ddf
-    # global param_data
+    global ddf_range
     global default_color_data
+
+    ddf = df
+    ddf_range = df
 
     param_data = dict(
         assay_type = assay_type,
@@ -423,15 +472,74 @@ def update_agg_data(assay_type, library_source, platform, continent, country, co
     query_text = ' & '.join(query_list)
 
     if query_text:
-        logging.debug(query_text)
         ddf = df.query(query_text)
+        ddf_range = ddf
+
+    default_color_data = field_color_mapping(ddf_range, coloring_field)
+
+    return param_data
+
+
+"""
+aggregate_data, time_range_data -> sequencing center options
+"""
+@app.callback(
+    Output('center_name_dropdown', 'options'),
+    Input('aggregate_data', 'data'),
+    Input('time_range_data', 'data'),
+)
+def update_week_range(data, time_range_data):
+    global ddf_range
 
     # store all avail center
-    center_data = ddf['Center Name'].unique()
+    center_data = ddf_range['Center Name'].unique()
+    # generate options for center_name_dropdown
+    options = [{'label': center_name, 'value': center_name} for center_name in center_data]
 
-    default_color_data = field_color_mapping(ddf, coloring_field)
+    return options
 
-    return param_data, center_data
+
+
+"""
+selecting period of time -> time_range_data
+"""
+@app.callback(
+    Output('time_range_data', 'data'),
+    Input('sra_week', 'relayoutData'),
+)
+def update_week_range(relayout_data):
+    global df
+    global ddf
+    global ddf_range
+    global default_color_data
+
+    start = None
+    end = None
+
+    if relayout_data:
+        if 'xaxis.range' in relayout_data:
+            (start, end) = relayout_data['xaxis.range']
+
+        if 'xaxis.range[0]' in relayout_data:
+            start = relayout_data['xaxis.range[0]']
+            end = relayout_data['xaxis.range[1]']
+    
+    if start and end:
+        start = start.split(' ')[0]
+        end = end.split(' ')[0]
+
+    time_range_data = dict(
+        start = start,
+        end = end,
+    )
+    
+    if start and end:
+        ddf_range = ddf.query(f'week>="{start}" and week<="{end}"')
+    else:
+        # reset to all
+        ddf_range = ddf
+
+    return time_range_data
 
 
 # coloring field controllers -> color mapping
@@ -443,53 +551,87 @@ def update_color_map(coloring_field):
 
     return field_color_mapping(ddf, coloring_field)
 
-
+# change aggregate_data/color_mapping -> update sra_week plot
 @app.callback(
-    Output('sra_sankey', 'figure'),
-    Output('stats_output', 'children'),
-    Output('center_name_dropdown', 'options'),
+    Output('sra_week', 'figure'),
     Input('aggregate_data', 'data'),
-    Input('center_data', 'data'),
     Input('color_mapping', 'data'),
 )
-def update_sankey_graph(data, center_data, color_data):
+def update_overall_week_graph(data, color_data):
     global ddf
     global default_color_data
     
     if not color_data: color_data = default_color_data
 
-    fig = fig_parallel_categories(ddf, dimensions_display, color_data)
-    
-    # generate options for center_name_dropdown
-    options = [{'label': center_name, 'value': center_name} for center_name in center_data]
+    fig_week = generate_fig_sample_time(ddf, color_data)
+    fig_week.update_layout(height=400)
+    fig_week.update_layout(legend=dict(
+        yanchor="top",
+        y=0.99,
+        xanchor="left",
+        x=0.01
+    ))
 
-    return fig, get_stats(ddf), options
+    return fig_week
+
+
+"""
+aggregate_data, time_range_data -> parallel comparison
+"""
+@app.callback(
+    Output('sra_sankey', 'figure'),
+    Output('stats_output', 'children'),
+    Input('aggregate_data', 'data'),
+    Input('time_range_data', 'data'),
+    Input('color_mapping', 'data'),
+)
+def update_sankey_graph(data, time_range_data, color_data):
+    global ddf_range
+    global default_color_data
+
+    if not color_data: color_data = default_color_data
+
+    fig = fig_parallel_categories(ddf_range, dimensions_display, color_data)
+
+    stats_text = get_stats(ddf_range)
+    start = time_range_data['start']
+    end = time_range_data['end']
+    if start and end:
+        stats_text += f' ({start} → {end})' 
+
+    return fig, stats_text
 
 
 @app.callback(
-    Output('sra_scatter', 'figure'),
     Output('sra_geo', 'figure'),
+    Output('sra_scatter', 'figure'),
     Output('bases_stats_output', 'children'),
+    Input('aggregate_data', 'data'),
     Input('center_name_dropdown', 'value'),
     Input('color_mapping', 'data'),
+    Input('time_range_data', 'data'),
 )
-def update_graph(selected_center, color_data):
-    global ddf
-    ddf_center = ddf
+def update_graph(data, selected_center, color_data, time_range_data):
+    global ddf_range
+    ddf_center = ddf_range
 
     # selecting centers
     if selected_center:
-        idx = ddf['Center Name'].isin(selected_center)
-        ddf_center = ddf[idx]
-
-    # cross-filtering with sequencing centers
-    # fig_sc = fig_spotlen_bases(ddf_center, 'Center Name')
-    fig_sc = generate_fig_sample_time(ddf_center, color_data)
+        idx = ddf_center['Center Name'].isin(selected_center)
+        ddf_center = ddf_center[idx]
 
     # generate geo plots
     fig_geo = fig_geo_stats(ddf_center)
 
-    return fig_sc, fig_geo, get_stats(ddf_center)
+    # cross-filtering with sequencing centers
+    # fig_sc = fig_spotlen_bases(ddf_center, 'Center Name')
+    fig_sc = generate_fig_sample_time(ddf_center, color_data)
+    fig_sc.update_layout(height=400)
+
+    cnum = len(ddf_center['Center Name'].unique())
+    stats_text = f'{cnum} sequencing centers → ' + get_stats(ddf_center)
+
+    return fig_geo, fig_sc, stats_text
 
 @app.callback(
     Output("download-dataframe-csv", "data"),
@@ -505,4 +647,4 @@ def func(n_clicks):
         return dict(content=content, filename="sra_wastewater.csv")
 
 if __name__ == '__main__':
-    app.run_server(debug=False)
+    app.run_server(debug=True)
