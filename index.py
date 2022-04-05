@@ -19,7 +19,8 @@ filename = "data/SraRunTable_wastewater.csv"
 
 df = pd.read_pickle(f'{filename}.pkl')
 ddf = df.copy()
-ddf_range = ddf.query('week>="2019-12-01"')
+ddf_range = ddf
+# ddf_range = ddf.query('week>="2019-12-01"')
 
 init_range = True
 
@@ -246,7 +247,6 @@ def generate_fig_sample_time(dff, color_data):
     # Add range slider
     fig.update_layout(
         xaxis=dict(
-            range = ['2019-12-01', datetime.today().strftime('%Y-%m-%d')],
             rangeselector=dict(
                 buttons=list([
                     dict(count=month_since_covid19(),
@@ -478,10 +478,12 @@ def update_agg_data(assay_type, library_source, platform, continent, country, co
     if query_text:
         ddf = df.query(query_text)
         ddf_range = ddf
+    else:
+        ddf_range = ddf
     
-    if init_range:
-        ddf_range = ddf.query('week>="2019-12-01"')
-        init_range = False
+    # if init_range:
+    #     ddf_range = ddf.query('week>="2019-12-01"')
+    #     init_range = False
 
     default_color_data = field_color_mapping(ddf_range, coloring_field)
 
@@ -495,6 +497,7 @@ aggregate_data, time_range_data -> sequencing center options
     Output('center_name_dropdown', 'options'),
     Input('aggregate_data', 'data'),
     Input('time_range_data', 'data'),
+    prevent_initial_call=True,
 )
 def update_week_range(data, time_range_data):
     global ddf_range
