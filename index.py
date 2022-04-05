@@ -20,6 +20,7 @@ filename = "data/SraRunTable_wastewater.csv"
 df = pd.read_pickle(f'{filename}.pkl')
 ddf = df
 ddf_range = df
+init_date_start = '2019-12-01'
 
 param_data = {}
 default_color_data = {}
@@ -238,12 +239,13 @@ def generate_fig_sample_time(dff, color_data):
     
     def month_since_covid19():
         d1 = datetime.today()
-        d2 = datetime(2019,12,7)
+        d2 = datetime(2019,12,15)
         return (d1.year - d2.year) * 12 + d1.month - d2.month
 
     # Add range slider
     fig.update_layout(
         xaxis=dict(
+            range = [datetime(2019,12,1), datetime.today()],
             rangeselector=dict(
                 buttons=list([
                     dict(count=month_since_covid19(),
@@ -266,7 +268,8 @@ def generate_fig_sample_time(dff, color_data):
                          label="1y",
                          step="year",
                          stepmode="backward"),
-                    dict(step="all"),
+                    dict(label="all",
+                         step="all"),
                 ]),
             ),
             rangeslider=dict(
@@ -435,6 +438,7 @@ def update_agg_data(assay_type, library_source, platform, continent, country, co
     global ddf
     global ddf_range
     global default_color_data
+    global init_date_start
 
     ddf = df
     ddf_range = df
@@ -475,6 +479,11 @@ def update_agg_data(assay_type, library_source, platform, continent, country, co
         ddf = df.query(query_text)
         ddf_range = ddf
 
+    if init_date_start:
+        ddf = ddf.query(f'week>="{init_date_start}"')
+        ddf_range = ddf
+        init_date_start = None
+    
     default_color_data = field_color_mapping(ddf_range, coloring_field)
 
     return param_data
