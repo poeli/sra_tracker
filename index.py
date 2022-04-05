@@ -1,5 +1,4 @@
 from cmath import log
-from email.policy import default
 import plotly.express as px
 import dash
 from dash import Dash, dcc, html, State, Input, Output, dash_table
@@ -17,10 +16,12 @@ logging.basicConfig(
 )
 
 filename = "data/SraRunTable_wastewater.csv"
+
 df = pd.read_pickle(f'{filename}.pkl')
-ddf = df
-ddf_range = df
-init_date_start = '2019-12-01'
+ddf = df.copy()
+ddf_range = ddf.query('week>="2019-12-01"')
+
+init_range = True
 
 param_data = {}
 default_color_data = {}
@@ -245,7 +246,7 @@ def generate_fig_sample_time(dff, color_data):
     # Add range slider
     fig.update_layout(
         xaxis=dict(
-            range = [datetime(2019,12,1), datetime.today()],
+            range = ['2019-12-01', datetime.today().strftime('%Y-%m-%d')],
             rangeselector=dict(
                 buttons=list([
                     dict(count=month_since_covid19(),
@@ -438,10 +439,9 @@ def update_agg_data(assay_type, library_source, platform, continent, country, co
     global ddf
     global ddf_range
     global default_color_data
-    global init_date_start
+    global init_range
 
     ddf = df
-    ddf_range = df
 
     param_data = dict(
         assay_type = assay_type,
@@ -478,12 +478,11 @@ def update_agg_data(assay_type, library_source, platform, continent, country, co
     if query_text:
         ddf = df.query(query_text)
         ddf_range = ddf
-
-    if init_date_start:
-        ddf = ddf.query(f'week>="{init_date_start}"')
-        ddf_range = ddf
-        init_date_start = None
     
+    if init_range:
+        ddf_range = ddf.query('week>="2019-12-01"')
+        init_range = False
+
     default_color_data = field_color_mapping(ddf_range, coloring_field)
 
     return param_data
@@ -515,6 +514,7 @@ selecting period of time -> time_range_data
 @app.callback(
     Output('time_range_data', 'data'),
     Input('sra_week', 'relayoutData'),
+    prevent_initial_call=True,
 )
 def update_week_range(relayout_data):
     global df
@@ -541,13 +541,12 @@ def update_week_range(relayout_data):
         start = start,
         end = end,
     )
-    
+
     if start and end:
         ddf_range = ddf.query(f'week>="{start}" and week<="{end}"')
-    else:
-        # reset to all
+    elif 'xaxis.autorange' in relayout_data:
         ddf_range = ddf
-
+    
     return time_range_data
 
 
@@ -565,6 +564,7 @@ def update_color_map(coloring_field):
     Output('sra_week', 'figure'),
     Input('aggregate_data', 'data'),
     Input('color_mapping', 'data'),
+    prevent_initial_call=True,
 )
 def update_overall_week_graph(data, color_data):
     global ddf
@@ -593,6 +593,7 @@ aggregate_data, time_range_data -> parallel comparison
     Input('aggregate_data', 'data'),
     Input('time_range_data', 'data'),
     Input('color_mapping', 'data'),
+    prevent_initial_call=True,
 )
 def update_sankey_graph(data, time_range_data, color_data):
     global ddf_range
@@ -603,8 +604,11 @@ def update_sankey_graph(data, time_range_data, color_data):
     fig = fig_parallel_categories(ddf_range, dimensions_display, color_data)
 
     stats_text = get_stats(ddf_range)
-    start = time_range_data['start']
-    end = time_range_data['end']
+    start, end = None, None
+    if time_range_data:
+        start = time_range_data['start']
+        end = time_range_data['end']
+
     if start and end:
         stats_text += f' ({start} → {end})' 
 
@@ -619,6 +623,7 @@ def update_sankey_graph(data, time_range_data, color_data):
     Input('center_name_dropdown', 'value'),
     Input('color_mapping', 'data'),
     Input('time_range_data', 'data'),
+    prevent_initial_call=True,
 )
 def update_graph(data, selected_center, color_data, time_range_data):
     global ddf_range
@@ -629,9 +634,6 @@ def update_graph(data, selected_center, color_data, time_range_data):
         idx = ddf_center['Center Name'].isin(selected_center)
         ddf_center = ddf_center[idx]
 
-    # generate geo plots
-    fig_geo = fig_geo_stats(ddf_center)
-
     # cross-filtering with sequencing centers
     # fig_sc = fig_spotlen_bases(ddf_center, 'Center Name')
     fig_sc = generate_fig_sample_time(ddf_center, color_data)
@@ -639,6 +641,10 @@ def update_graph(data, selected_center, color_data, time_range_data):
 
     cnum = len(ddf_center['Center Name'].unique())
     stats_text = f'{cnum} sequencing centers → ' + get_stats(ddf_center)
+
+    # generate geo plots
+    # ddf_center = ddf_center.query(f'lat<=90 and lat>=-90 and lon<=90 and lon>=-90')
+    fig_geo = fig_geo_stats(ddf_center)
 
     return fig_geo, fig_sc, stats_text
 
